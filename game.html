@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agar.io Clone</title>
+<style>
+body {
+margin: 0;
+overflow: hidden;
+background-color: #f0f0f0;
+font-family: Arial, sans-serif;
+}
+
+canvas {
+border: 1px solid black;
+background-color: white;
+display: block;
+width: 800px;
+height: 600px;
+}
+
+#titleScreen {
+position: absolute;
+width: 100%;
+height: 100%;
+background-color: rgba(255, 255, 255, 0.8);
+display: flex;
+flex-direction: column;
+justify-content: center;
+align-items: center;
+z-index: 10;
+}
+
+#leaderboard {
+position: absolute;
+top: 10px;
+right: 10px;
+background-color: white;
+border: 1px solid black;
+padding: 10px;
+z-index: 10;
+}
+
+#gameOverScreen {
+position: absolute;
+width: 100%;
+height: 100%;
+background-color: rgba(255, 0, 0, 0.8);
+display: none;
+flex-direction: column;
+justify-content: center;
+align-items: center;
+z-index: 20;
+}
+</style>
+</head>
+
+<body>
+<div id="titleScreen">
+<h1>Agar.io Clone</h1>
+<input type="text" id="username" placeholder="Enter your username" />
+<button id="colorPickerButton">Choose Skin Color</button>
+<input type="color" id="colorPicker" style="display: none;" />
+<button id="startButton">Start Game</button>
+</div>
+<div id="leaderboard"></div>
+<div id="gameOverScreen">
+<h1>Game Over!</h1>
+<button id="restartButton">Restart Game</button>
+</div>
+<canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const leaderboardDiv = document.getElementById('leaderboard');
+const titleScreen = document.getElementById('titleScreen');
+const usernameInput = document.getElementById('username');
+const startButton = document.getElementById('startButton');
+const gameOverScreen = document.getElementById('gameOverScreen');
+const restartButton = document.getElementById('restartButton');
+const colorPickerButton = document.getElementById('colorPickerButton');
+const colorPicker = document.getElementById('colorPicker');
+
+const CANVAS_WIDTH = 800;
+const CANVAS_HEIGHT = 600;
+canvas.width = CANVAS_WIDTH;
+canvas.height = CANVAS_HEIGHT;
+
+let player = {
+x: CANVAS_WIDTH / 2,
+y: CANVAS_HEIGHT / 2,
+radius: 20,
+color: '#0000FF',
+username: 'Player',
+score: 0,
+};
+
+const bots = [];
+const dots = [];
+const botNames = [
+"Shadow", "Blaze", "Titan", "Vortex", "Phantom", "Echo", "Raven", "Nebula",
+"Zephyr", "Frost", "Ember", "Jade", "Flame", "Storm", "Bolt", "Ash", "Comet",
+"Fury", "Rogue", "Nox", "Nova", "Wraith", "Aurora", "Dusk", "Cinder", "Inferno",
+"Onyx", "Spectre", "Myst", "Haze", "Ice", "Quartz", "Tempest", "Gale", "Cobalt",
+"Prowler", "Rift", "Clarity", "Phantom", "Abyss", "Reaper", "Vigil", "Cerulean",
+"Lumina", "Kona", "Cascade", "Viper", "Sable", "Shard", "Astra", "Zephyra",
+"Crimson", "Amber", "Obsidian", "Indigo", "Ivory", "Lucent", "Golden", "Auric",
+"Silver", "Bronze", "Copper", "Garnet", "Flint", "Slate", "Emerald", "Sapphire",
+"Amethyst", "Ruby", "Peridot", "Zircon", "Titanium", "Platinum", "Diamond",
+"Galaxy", "Nebula", "Orion", "Phoenix", "Tornado", "Squall", "Hurricane",
+"Draco", "Omen", "Wisp", "Spectral", "Frostbyte", "Gale-force", "Thunder",
+"Boltstrike", "Dragon", "Alpha", "Beta", "Gamma", "Omega", "Sigma", "Epsilon",
+"Zeta", "Theta", "Iota", "Kappa", "Lambda", "Mu", "Nu", "Xi", "Omicron",
+"Pi", "Rho", "Tau", "Upsilon", "Phi", "Chi", "Psi", "Omega", "Eclipse",
+"Starlight", "Solstice", "Equinox", "Aether", "Void", "Celestial", "Griffin",
+"Hydra", "Manticore", "Kraken", "Sphinx", "Phoenix", "Basilisk", "Chimera"];
+const INITIAL_BOT_COUNT = 50; // Increased initial bot count
+const INITIAL_DOT_COUNT = 500; // Increased initial dot count
+const MAX_BOTS = 100; // Max bots to spawn
+const MAX_PLAYER_SIZE = 100;
+
+function getRandomColor() {
+const r = Math.floor(Math.random() * 256);
+const g = Math.floor(Math.random() * 256);
+const b = Math.floor(Math.random() * 256);
+return `rgb(${r},${g},${b})`;
+}
+
+function createBot() {
+const radius = Math.random() * 15 + 15; // Adjust initial bot size
+const x = Math.random() * 5000; // Increase spawn area
+const y = Math.random() * 5000; // Increase spawn area
+const botName = botNames[Math.floor(Math.random() * botNames.length)];
+const color = getRandomColor();
+
+bots.push({
+x,
+y,
+radius,
+color,
+name: botName,
+speed: Math.random() * 1 + 0.5, // Adjust bot speed
+movingDirection: Math.random() * 2 * Math.PI,
+});
+}
+
+function createDot() {
+const x = Math.random() * 5000; // Increase spawn area
+const y = Math.random() * 5000; // Increase spawn area
+const color = getRandomColor();
+dots.push({ x, y, radius: 3, color }); // Decrease dot size
+}
+
+function respawnBotsAndDots() {
+bots.length = 0;
+for (let i = 0; i < INITIAL_BOT_COUNT; i++) createBot();
+dots.length = 0;
+for (let j = 0; j < INITIAL_DOT_COUNT; j++) createDot();
+}
+
+let mouseX = player.x;
+let mouseY = player.y;
+let animationId;
+
+function wrapCoordinates(x, y) {
+return { x, y }; // No wrapping for large area
+}
+
+function getCameraOffset() {
+return {
+x: player.x - (CANVAS_WIDTH / 2),
+y: player.y - (CANVAS_HEIGHT / 2)
+};
+}
+
+canvas.addEventListener('mousemove', function (event) {
+const rect = canvas.getBoundingClientRect();
+mouseX = event.clientX - rect.left;
+mouseY = event.clientY - rect.top;
+});
+
+document.addEventListener('keydown', function (event) {
+if (event.code === 'Space' && player.radius > 20) {
+splitPlayer();
+}
+});
+
+function splitPlayer() {
+const halfSize = player.radius / 2;
+player.radius = halfSize;
+createBot();
+}
+
+function detectCollision(obj1, obj2) {
+const dx = obj2.x - obj1.x;
+const dy = obj2.y - obj1.y;
+const distance = Math.sqrt(dx ** 2 + dy ** 2);
+return distance < (obj1.radius + obj2.radius);
+}
+
+function update() {
+if (gameOverScreen.style.display === 'flex') return;
+
+const dx = mouseX - (CANVAS_WIDTH / 2);
+const dy = mouseY - (CANVAS_HEIGHT / 2);
+const distance = Math.sqrt(dx ** 2 + dy ** 2);
+const moveSpeed = Math.max(0.5, Math.min(distance / (15 + player.radius / 10), 3)); // Nerfed player speed
+
+if (distance > 0) {
+const angle = Math.atan2(dy, dx);
+player.x += Math.cos(angle) * moveSpeed;
+player.y += Math.sin(angle) * moveSpeed;
+}
+
+// Update bots
+bots.forEach((bot, bIndex) => {
+if (Math.random() < 0.05) {
+bot.movingDirection += Math.random() * 0.1 - 0.05;
+}
+
+// Bot chasing mechanic
+const distToPlayer = Math.sqrt((bot.x - player.x) ** 2 + (bot.y - player.y) ** 2);
+if (bot.radius > player.radius && distToPlayer < 150) { // If the bot is larger and the player is close
+const angleToPlayer = Math.atan2(player.y - bot.y, player.x - bot.x);
+bot.x += Math.cos(angleToPlayer) * (bot.speed + 0.5); // Chase the player
+bot.y += Math.sin(angleToPlayer) * (bot.speed + 0.5);
+} else {
+// Regular random movement
+bot.x += Math.cos(bot.movingDirection) * bot.speed;
+bot.y += Math.sin(bot.movingDirection) * bot.speed;
+}
+
+// Collision detection with player
+if (detectCollision(player, bot)) {
+if (bot.radius > player.radius) {
+gameOverScreen.style.display = 'flex';
+cancelAnimationFrame(animationId);
+} else {
+player.radius += bot.radius * 0.1; // Reduced growth rate
+bots.splice(bIndex, 1);
+createBot();
+}
+}
+
+// Collision detection between bots
+bots.forEach((otherBot, oIndex) => {
+if (bIndex !== oIndex && detectCollision(bot, otherBot)) {
+if (bot.radius > otherBot.radius) {
+bot.radius += otherBot.radius * 0.1; // Reduced growth rate
+bots.splice(oIndex, 1);
+} else {
+otherBot.radius += bot.radius * 0.1; // Reduced growth rate
+bots.splice(bIndex, 1);
+}
+}
+});
+
+// Collision detection with dots
+dots.forEach((dot, dIndex) => {
+if (detectCollision(bot, dot)) {
+bot.radius += dot.radius * 0.1; // Adjusted growth from dot consumption
+dots.splice(dIndex, 1); // Remove the dot
+createDot(); // Create a new dot
+}
+});
+});
+
+// Update dots for player and replenish dots when necessary
+if (dots.length < 1000) { // Maintain a minimum number of dots
+createDot();
+}
+
+dots.forEach((dot, dIndex) => {
+if (detectCollision(player, dot)) {
+if (player.radius < MAX_PLAYER_SIZE) {
+player.radius += 0.5; // Reduced player growth rate
+}
+dots.splice(dIndex, 1);
+createDot();
+}
+});
+
+updateLeaderboard();
+}
+
+function resetGame() {
+player = {
+x: CANVAS_WIDTH / 2,
+y: CANVAS_HEIGHT / 2,
+radius: 20,
+color: '#0000FF',
+username: player.username,
+score: 0,
+};
+respawnBotsAndDots();
+}
+
+function drawGrid() {
+ctx.strokeStyle = '#e0e0e0';
+ctx.lineWidth = 0.5;
+
+for (let x = 0; x < CANVAS_WIDTH; x += 50) {
+ctx.beginPath();
+ctx.moveTo(x, 0);
+ctx.lineTo(x, CANVAS_HEIGHT);
+ctx.stroke();
+ctx.closePath();
+}
+
+for (let y = 0; y < CANVAS_HEIGHT; y += 50) {
+ctx.beginPath();
+ctx.moveTo(0, y);
+ctx.lineTo(CANVAS_WIDTH, y);
+ctx.stroke();
+ctx.closePath();
+}
+}
+
+function render() {
+ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+drawGrid();
+
+// Calculate camera offset based on player position
+const { x: offsetX, y: offsetY } = getCameraOffset();
+
+// Draw player
+ctx.beginPath();
+ctx.arc(player.x - offsetX, player.y - offsetY, player.radius, 0, Math.PI * 2);
+ctx.fillStyle = player.color;
+ctx.fill();
+ctx.closePath();
+ctx.fillStyle = 'black';
+ctx.font = (player.radius / 3) + "px Arial";
+ctx.fillText(player.username, player.x - offsetX - player.radius / 4, player.y - offsetY + 5);
+
+// Draw bots
+bots.forEach(bot => {
+ctx.beginPath();
+ctx.arc(bot.x - offsetX, bot.y - offsetY, bot.radius, 0, Math.PI * 2);
+ctx.fillStyle = bot.color;
+ctx.fill();
+ctx.closePath();
+
+ctx.fillStyle = 'black';
+ctx.font = (bot.radius / 3) + "px Arial";
+ctx.fillText(bot.name, bot.x - offsetX - bot.radius / 4, bot.y - offsetY + 5);
+});
+
+// Draw dots
+dots.forEach(dot => {
+ctx.beginPath();
+ctx.arc(dot.x - offsetX, dot.y - offsetY, dot.radius, 0, Math.PI * 2);
+ctx.fillStyle = dot.color;
+ctx.fill();
+ctx.closePath();
+});
+}
+
+function updateLeaderboard() {
+leaderboardDiv.innerHTML = `<strong>Leaderboard</strong><br/>`;
+leaderboardDiv.innerHTML += `${player.username}: ${Math.round(player.score)}<br/>`;
+bots.forEach(bot => {
+leaderboardDiv.innerHTML += `${bot.name}: ${Math.round(bot.radius)}<br/>`;
+});
+}
+
+function gameLoop() {
+update();
+render();
+animationId = requestAnimationFrame(gameLoop);
+}
+
+colorPickerButton.addEventListener('click', function () {
+colorPicker.click();
+});
+
+colorPicker.addEventListener('input', function () {
+player.color = colorPicker.value;
+});
+
+startButton.addEventListener('click', function () {
+const username = usernameInput.value.trim();
+if (username) {
+player.username = username;
+resetGame();
+titleScreen.style.display = 'none';
+gameLoop();
+} else {
+alert("Please enter a valid username!");
+}
+});
+
+restartButton.addEventListener('click', function () {
+gameOverScreen.style.display = 'none';
+resetGame();
+gameLoop();
+});
+</script>
+</body>
+
+</html>

@@ -1,5 +1,4 @@
-This is the first version of html agario.
-This is a fan-made game.
-Expect bugs.
-Split feature does not work right now.
-Its completely offline.
+Complete html agario made in one script
+Split does not quite work properly
+fully sentient ai
+Easy to get big
